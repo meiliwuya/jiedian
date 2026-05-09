@@ -1,33 +1,22 @@
-name: Golden_Final_Harvest
+name: Golden_Final_Push
 on:
   workflow_dispatch:
 jobs:
-  test_harvest:
+  harvest:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: 🛰️ 锁定活源收割
+      - name: 🛰️ 抓取活源并注入
         run: |
-          echo "正在从唯一活源取货..."
-          # 只抓取那个被证实的活源
-          DATA=$(curl -sL --max-time 20 "https://raw.githubusercontent.com/mfuu/v2ray/master/v2ray")
+          # 1. 从那个被你验证为“活”的地址抓取
+          DATA=$(curl -sL --max-time 30 "https://raw.githubusercontent.com/mfuu/v2ray/master/v2ray")
           
-          # 存入文件
-          echo "$DATA" > nodes_test.txt
-          
-          # 打印前 5 行，在日志里给你看一眼真货
-          echo "==== 成功取货预览 ===="
-          head -n 5 nodes_test.txt
-          echo "===================="
+          # 2. 简单的安全检查
+          if [[ "$DATA" == *"404"* ]] || [ ${#DATA} -lt 100 ]; then
+            echo "源站数据异常，停止注入"
+            exit 1
+          fi
 
-      - name: 🚚 强行推送至仓库
-        run: |
-          git config --global user.name "TomatoBot"
-          git config --global user.email "bot@tomato.plus"
-          git add nodes_test.txt
-          # 即使内容一样也强制提交，确保你能看到更新
-          git commit --allow-empty -m "Tomato Success: $(date)"
-          git push origin main
+          # 3. 注入甲骨文 (确认你的 Secrets 里的 SUB_URL 是正确的)
+          curl -X POST -L "${{ secrets.SUB_URL }}" \
+            -d "key=tomato666" \
+            --data-urlencode "data=${DATA}"
