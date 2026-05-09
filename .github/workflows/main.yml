@@ -1,27 +1,43 @@
-- name: 🛰️ 全能收割并注入
+name: Golden_Harvest_Bot
+
+on:
+  workflow_dispatch: # 支持手动点火
+  schedule:
+    - cron: '0 * * * *' # 每小时自动收割一次
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🛰️ 全能收割与数据净化
         run: |
-          # 尝试从四个不同的主力源抓取
-          SRC1=$(curl -sL "https://raw.githubusercontent.com/freefq/free/master/v2ray")
-          SRC2=$(curl -sL "https://raw.githubusercontent.com/vfarid/v2ray-share/main/all.txt")
-          SRC3=$(curl -sL "https://raw.githubusercontent.com/awesome-vpn/test/main/all.txt")
-          SRC4=$(curl -sL "https://sub.shushubai.com/v2ray")
+          # 1. 尝试从多个源并行抓取
+          echo "正在从全球源收割节点..."
+          SRC1=$(curl -sL --max-time 10 "https://raw.githubusercontent.com/freefq/free/master/v2ray" || echo "")
+          SRC2=$(curl -sL --max-time 10 "https://raw.githubusercontent.com/vfarid/v2ray-share/main/all.txt" || echo "")
+          SRC3=$(curl -sL --max-time 10 "https://raw.githubusercontent.com/awesome-vpn/test/main/all.txt" || echo "")
+          SRC4=$(curl -sL --max-time 10 "https://sub.shushubai.com/v2ray" || echo "")
           
-          # 合并所有数据
-          ALL_DATA="${SRC1}"$'\n'"${SRC2}"$'\n'"${SRC3}"$'\n'"${SRC4}"
+          # 2. 合并所有原始数据
+          RAW_TOTAL="${SRC1}"$'\n'"${SRC2}"$'\n'"${SRC3}"$'\n'"${SRC4}"
           
-          # 关键：过滤掉所有的 404 错误字样，只留下包含协议的行
-          CLEAN_DATA=$(echo "$ALL_DATA" | grep -E "vmess://|vless://|ss://|trojan://")
+          # 3. 【关键：数据净化】只保留包含合法协议的行，彻底杀掉 404 等网页报错文本
+          # grep -E 会筛选出所有包含这些关键词的行
+          CLEAN_DATA=$(echo "$RAW_TOTAL" | grep -Ei "vmess://|vless://|ss://|trojan://|hysteria2://")
           
-          # 检查过滤后的数据量
+          # 4. 安全检查：如果净化后的数据太短，说明真的没抓到货，直接中止
           if [ ${#CLEAN_DATA} -lt 100 ]; then
-            echo "❌ 失败：所有源均未抓取到有效节点数据。"
+            echo "❌ 错误：收割失败。所有源均未返回有效节点（可能被GitHub拦截或源已失效）。"
             exit 1
           fi
           
-          echo "✅ 过滤成功，抓取到有效节点。准备注入甲骨文..."
+          echo "✅ 净化完成！检测到有效节点数据，准备注入甲骨文指挥部..."
 
-          # 执行注入
+          # 5. 执行物理注入
+          # 使用 --data-urlencode 确保复杂节点字符在传输中不被宝塔或甲骨文误解
           curl -X POST -L "${{ secrets.SUB_URL }}" \
-            -A "Mozilla/5.0" \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
             -d "key=tomato666" \
             --data-urlencode "data=${CLEAN_DATA}"
+          
+          echo "🏁 注入任务已提交。请刷新 sub.php 查看结果。"
