@@ -1,34 +1,43 @@
 name: Golden_Test_Only
 
 on:
-  workflow_dispatch: # 仅支持手动点火
+  workflow_dispatch:
 
 jobs:
   test_harvest:
     runs-on: ubuntu-latest
+    # 强制声明权限
     permissions:
-      contents: write # 赋予机器人写入仓库文件的权限
+      contents: write
     steps:
       - name: 1. 检出仓库代码
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: 2. 强力抓取并净化
+      - name: 2. 强力抓取并生成文件
         run: |
-          # 尝试从主力源抓取
-          RAW=$(curl -sL "https://raw.githubusercontent.com/freefq/free/master/v2ray")
-          
-          # 净化：只要带协议的行
+          # 尝试从主力源抓取并过滤
+          RAW=$(curl -sL --max-time 20 "https://raw.githubusercontent.com/freefq/free/master/v2ray")
           CLEAN=$(echo "$RAW" | grep -Ei "vmess://|vless://|ss://|trojan://")
           
-          # 将结果写入本地文件
-          echo "$CLEAN" > nodes_test.txt
-          
-          echo "抓取完成，文件大小：$(wc -c < nodes_test.txt) 字节"
+          if [ ${#CLEAN} -lt 100 ]; then
+            echo "❌ 抓取内容太短，可能是源失效了"
+            exit 1
+          fi
 
-      - name: 3. 将生成的txt推送到仓库
+          echo "$CLEAN" > nodes_test.txt
+          echo "✅ 文件已生成，大小：$(wc -c < nodes_test.txt) 字节"
+
+      - name: 3. 强行推送回仓库
         run: |
           git config --global user.name "TomatoBot"
           git config --global user.email "bot@tomato.plus"
           git add nodes_test.txt
-          git commit -m "🛰️ 自动收割测试更新: $(date)" || echo "没有内容变化"
-          git push
+          # 检查是否有文件变化，避免提交空更新
+          if git diff --staged --quiet; then
+            echo "文件内容无变化，跳过提交"
+          else
+            git commit -m "🛰️ 自动更新测试文件: $(date)"
+            git push origin main
+          fi
