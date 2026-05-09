@@ -1,54 +1,34 @@
-name: Golden_Harvest_Bot
+name: Golden_Test_Only
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'
+  workflow_dispatch: # 仅支持手动点火
 
 jobs:
-  harvest:
+  test_harvest:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 赋予机器人写入仓库文件的权限
     steps:
-      - name: 🛰️ 指挥部收割指令
+      - name: 1. 检出仓库代码
+        uses: actions/checkout@v3
+
+      - name: 2. 强力抓取并净化
         run: |
-          # 1. 尝试多个备用源 (直接抓原始数据，不走易挂的中转)
-          URL1="https://raw.githubusercontent.com/freefq/free/master/v2ray"
-          URL2="https://raw.githubusercontent.com/vfarid/v2ray-share/main/all.txt"
-          URL3="https://raw.githubusercontent.com/awesome-vpn/test/main/all.txt"
+          # 尝试从主力源抓取
+          RAW=$(curl -sL "https://raw.githubusercontent.com/freefq/free/master/v2ray")
           
-          echo "开始尝试从源1收割..."
-          DATA=$(curl -sL --max-time 15 "$URL1")
+          # 净化：只要带协议的行
+          CLEAN=$(echo "$RAW" | grep -Ei "vmess://|vless://|ss://|trojan://")
           
-          # 2. 如果源1挂了，尝试源2
-          if [[ "$DATA" == *"404"* ]] || [ ${#DATA} -lt 100 ]; then
-             echo "源1失效，切换源2..."
-             DATA=$(curl -sL --max-time 15 "$URL2")
-          fi
-
-          # 3. 如果源2也挂了，尝试源3
-          if [[ "$DATA" == *"404"* ]] || [ ${#DATA} -lt 100 ]; then
-             echo "源2失效，切换源3..."
-             DATA=$(curl -sL --max-time 15 "$URL3")
-          fi
-
-          # 4. 【核心防御】再次检查数据，如果是404或垃圾信息，直接自杀（不发送）
-          if [[ "$DATA" == *"404"* ]] || [[ "$DATA" == *"Not Found"* ]] || [ ${#DATA} -lt 100 ]; then
-            echo "❌ 严重错误：所有收割源均返回404或空数据。检查GitHub是否被源站屏蔽。"
-            exit 1
-          fi
-
-          # 5. 确保只提取包含协议的内容
-          CLEAN_DATA=$(echo "$DATA" | grep -Ei "vmess://|vless://|ss://|trojan://|hysteria2://")
+          # 将结果写入本地文件
+          echo "$CLEAN" > nodes_test.txt
           
-          if [ -z "$CLEAN_DATA" ]; then
-            echo "❌ 错误：抓到的数据中没有合法节点协议。"
-            exit 1
-          fi
+          echo "抓取完成，文件大小：$(wc -c < nodes_test.txt) 字节"
 
-          echo "✅ 收割成功，准备注入甲骨文指挥部..."
-
-          # 6. 执行注入
-          curl -X POST -L "${{ secrets.SUB_URL }}" \
-            -A "Mozilla/5.0" \
-            -d "key=tomato666" \
-            --data-urlencode "data=${CLEAN_DATA}"
+      - name: 3. 将生成的txt推送到仓库
+        run: |
+          git config --global user.name "TomatoBot"
+          git config --global user.email "bot@tomato.plus"
+          git add nodes_test.txt
+          git commit -m "🛰️ 自动收割测试更新: $(date)" || echo "没有内容变化"
+          git push
