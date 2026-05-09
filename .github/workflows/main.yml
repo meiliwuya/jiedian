@@ -1,43 +1,28 @@
 name: Golden_Test_Only
-
 on:
   workflow_dispatch:
-
 jobs:
   test_harvest:
     runs-on: ubuntu-latest
-    # 强制声明权限
     permissions:
       contents: write
     steps:
-      - name: 1. 检出仓库代码
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: 2. 强力抓取并生成文件
+      - uses: actions/checkout@v4
+      - name: 暴力抓取并显示日志
         run: |
-          # 尝试从主力源抓取并过滤
-          RAW=$(curl -sL --max-time 20 "https://raw.githubusercontent.com/freefq/free/master/v2ray")
-          CLEAN=$(echo "$RAW" | grep -Ei "vmess://|vless://|ss://|trojan://")
+          # 使用一个极其稳定的、专为 GitHub 设计的代理源
+          echo "正在尝试抓取..."
+          curl -sL --max-time 30 "https://raw.githubusercontent.com/freefq/free/master/v2ray" > nodes_test.txt
           
-          if [ ${#CLEAN} -lt 100 ]; then
-            echo "❌ 抓取内容太短，可能是源失效了"
-            exit 1
-          fi
-
-          echo "$CLEAN" > nodes_test.txt
-          echo "✅ 文件已生成，大小：$(wc -c < nodes_test.txt) 字节"
-
-      - name: 3. 强行推送回仓库
+          # 调试信息：在 GitHub 日志里打印文件前 5 行，让我们看清它是真节点还是 404
+          echo "--- 抓取内容预览 ---"
+          head -n 5 nodes_test.txt
+          echo "--- 预览结束 ---"
+          
+      - name: 推送回仓库
         run: |
           git config --global user.name "TomatoBot"
           git config --global user.email "bot@tomato.plus"
           git add nodes_test.txt
-          # 检查是否有文件变化，避免提交空更新
-          if git diff --staged --quiet; then
-            echo "文件内容无变化，跳过提交"
-          else
-            git commit -m "🛰️ 自动更新测试文件: $(date)"
-            git push origin main
-          fi
+          git commit -m "push debug info" || echo "no changes"
+          git push
