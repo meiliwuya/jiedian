@@ -1,4 +1,4 @@
-name: Golden_Test_Only
+name: Golden_Final_Harvest
 on:
   workflow_dispatch:
 jobs:
@@ -9,24 +9,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: 🛰️ 暴力抓取与日志拆解
+      - name: 🛰️ 锁定活源收割
         run: |
-          # 1. 直接抓取，不做任何判断
-          echo "正在尝试从源站取货..."
-          curl -sL --max-time 20 "https://raw.githubusercontent.com/freefq/free/master/v2ray" > nodes_test.txt
+          echo "正在从唯一活源取货..."
+          # 只抓取那个被证实的活源
+          DATA=$(curl -sL --max-time 20 "https://raw.githubusercontent.com/mfuu/v2ray/master/v2ray")
           
-          # 2. 核心调试：把抓到的前10行直接喷在屏幕上
-          echo "==== 抓取内容实况开始 ===="
-          head -n 10 nodes_test.txt
-          echo "==== 抓取内容实况结束 ===="
+          # 存入文件
+          echo "$DATA" > nodes_test.txt
           
-          # 3. 打印文件大小
-          echo "文件总大小: $(wc -c < nodes_test.txt) 字节"
+          # 打印前 5 行，在日志里给你看一眼真货
+          echo "==== 成功取货预览 ===="
+          head -n 5 nodes_test.txt
+          echo "===================="
 
-      - name: 🚚 强行推送到仓库
+      - name: 🚚 强行推送至仓库
         run: |
           git config --global user.name "TomatoBot"
           git config --global user.email "bot@tomato.plus"
           git add nodes_test.txt
-          git commit -m "debug: $(date)" || echo "no changes"
-          git push
+          # 即使内容一样也强制提交，确保你能看到更新
+          git commit --allow-empty -m "Tomato Success: $(date)"
+          git push origin main
