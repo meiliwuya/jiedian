@@ -1,32 +1,27 @@
-name: Golden_Harvest_Bot
-
-on:
-  workflow_dispatch: # 支持手动点火
-  schedule:
-    - cron: '0 * * * *' # 每小时自动收割一次
-
-jobs:
-  harvest:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 🛰️ 强力收割并注入甲骨文
+- name: 🛰️ 全能收割并注入
         run: |
-          # 1. 抓取货源（使用 api.v1.mk 确保在 GitHub 环境下也能顺利拿到数据）
-          DATA=$(curl -sL "https://api.v1.mk/sub?target=v2ray&url=https://raw.githubusercontent.com/freefq/free/master/v2ray")
+          # 尝试从四个不同的主力源抓取
+          SRC1=$(curl -sL "https://raw.githubusercontent.com/freefq/free/master/v2ray")
+          SRC2=$(curl -sL "https://raw.githubusercontent.com/vfarid/v2ray-share/main/all.txt")
+          SRC3=$(curl -sL "https://raw.githubusercontent.com/awesome-vpn/test/main/all.txt")
+          SRC4=$(curl -sL "https://sub.shushubai.com/v2ray")
           
-          # 2. 严密检查：如果抓到的是 404 文本或空数据，立即中止，不污染服务器
-          if [[ "$DATA" == *"404"* ]] || [ -z "$DATA" ] || [ ${#DATA} -lt 100 ]; then
-            echo "错误：抓取结果无效（可能是404或空数据），本次注入取消。"
+          # 合并所有数据
+          ALL_DATA="${SRC1}"$'\n'"${SRC2}"$'\n'"${SRC3}"$'\n'"${SRC4}"
+          
+          # 关键：过滤掉所有的 404 错误字样，只留下包含协议的行
+          CLEAN_DATA=$(echo "$ALL_DATA" | grep -E "vmess://|vless://|ss://|trojan://")
+          
+          # 检查过滤后的数据量
+          if [ ${#CLEAN_DATA} -lt 100 ]; then
+            echo "❌ 失败：所有源均未抓取到有效节点数据。"
             exit 1
           fi
           
-          echo "成功抓取到有效数据，长度：${#DATA} 字节。准备注入..."
+          echo "✅ 过滤成功，抓取到有效节点。准备注入甲骨文..."
 
-          # 3. 执行物理注入（发送到你的 sub.php）
-          # -L 追踪重定向, -A 伪装浏览器, --data-urlencode 确保特殊字符不丢
+          # 执行注入
           curl -X POST -L "${{ secrets.SUB_URL }}" \
-            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+            -A "Mozilla/5.0" \
             -d "key=tomato666" \
-            --data-urlencode "data=${DATA}"
-          
-          echo "注入指令已送达甲骨文指挥部。"
+            --data-urlencode "data=${CLEAN_DATA}"
