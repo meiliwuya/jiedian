@@ -1,43 +1,54 @@
 name: Golden_Harvest_Bot
 
 on:
-  workflow_dispatch: # 支持手动点火
+  workflow_dispatch:
   schedule:
-    - cron: '0 * * * *' # 每小时自动收割一次
+    - cron: '0 * * * *'
 
 jobs:
   harvest:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛰️ 全能收割与数据净化
+      - name: 🛰️ 指挥部收割指令
         run: |
-          # 1. 尝试从多个源并行抓取
-          echo "正在从全球源收割节点..."
-          SRC1=$(curl -sL --max-time 10 "https://raw.githubusercontent.com/freefq/free/master/v2ray" || echo "")
-          SRC2=$(curl -sL --max-time 10 "https://raw.githubusercontent.com/vfarid/v2ray-share/main/all.txt" || echo "")
-          SRC3=$(curl -sL --max-time 10 "https://raw.githubusercontent.com/awesome-vpn/test/main/all.txt" || echo "")
-          SRC4=$(curl -sL --max-time 10 "https://sub.shushubai.com/v2ray" || echo "")
+          # 1. 尝试多个备用源 (直接抓原始数据，不走易挂的中转)
+          URL1="https://raw.githubusercontent.com/freefq/free/master/v2ray"
+          URL2="https://raw.githubusercontent.com/vfarid/v2ray-share/main/all.txt"
+          URL3="https://raw.githubusercontent.com/awesome-vpn/test/main/all.txt"
           
-          # 2. 合并所有原始数据
-          RAW_TOTAL="${SRC1}"$'\n'"${SRC2}"$'\n'"${SRC3}"$'\n'"${SRC4}"
+          echo "开始尝试从源1收割..."
+          DATA=$(curl -sL --max-time 15 "$URL1")
           
-          # 3. 【关键：数据净化】只保留包含合法协议的行，彻底杀掉 404 等网页报错文本
-          # grep -E 会筛选出所有包含这些关键词的行
-          CLEAN_DATA=$(echo "$RAW_TOTAL" | grep -Ei "vmess://|vless://|ss://|trojan://|hysteria2://")
-          
-          # 4. 安全检查：如果净化后的数据太短，说明真的没抓到货，直接中止
-          if [ ${#CLEAN_DATA} -lt 100 ]; then
-            echo "❌ 错误：收割失败。所有源均未返回有效节点（可能被GitHub拦截或源已失效）。"
+          # 2. 如果源1挂了，尝试源2
+          if [[ "$DATA" == *"404"* ]] || [ ${#DATA} -lt 100 ]; then
+             echo "源1失效，切换源2..."
+             DATA=$(curl -sL --max-time 15 "$URL2")
+          fi
+
+          # 3. 如果源2也挂了，尝试源3
+          if [[ "$DATA" == *"404"* ]] || [ ${#DATA} -lt 100 ]; then
+             echo "源2失效，切换源3..."
+             DATA=$(curl -sL --max-time 15 "$URL3")
+          fi
+
+          # 4. 【核心防御】再次检查数据，如果是404或垃圾信息，直接自杀（不发送）
+          if [[ "$DATA" == *"404"* ]] || [[ "$DATA" == *"Not Found"* ]] || [ ${#DATA} -lt 100 ]; then
+            echo "❌ 严重错误：所有收割源均返回404或空数据。检查GitHub是否被源站屏蔽。"
             exit 1
           fi
-          
-          echo "✅ 净化完成！检测到有效节点数据，准备注入甲骨文指挥部..."
 
-          # 5. 执行物理注入
-          # 使用 --data-urlencode 确保复杂节点字符在传输中不被宝塔或甲骨文误解
+          # 5. 确保只提取包含协议的内容
+          CLEAN_DATA=$(echo "$DATA" | grep -Ei "vmess://|vless://|ss://|trojan://|hysteria2://")
+          
+          if [ -z "$CLEAN_DATA" ]; then
+            echo "❌ 错误：抓到的数据中没有合法节点协议。"
+            exit 1
+          fi
+
+          echo "✅ 收割成功，准备注入甲骨文指挥部..."
+
+          # 6. 执行注入
           curl -X POST -L "${{ secrets.SUB_URL }}" \
-            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+            -A "Mozilla/5.0" \
             -d "key=tomato666" \
             --data-urlencode "data=${CLEAN_DATA}"
-          
-          echo "🏁 注入任务已提交。请刷新 sub.php 查看结果。"
