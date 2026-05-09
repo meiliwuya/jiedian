@@ -1,25 +1,16 @@
-name: Golden_Harvest_Bot
-
-on:
-  workflow_dispatch: # 允许你手动点火
-  schedule:
-    - cron: '0 * * * *' # 每小时自动收割一次
-
-jobs:
-  harvest:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 🛰️ 抓取并注入
+- name: 🛰️ 强力收割并注入
         run: |
-          # 抓取三个主力源
-          DATA1=$(curl -sL https://raw.githubusercontent.com/freefq/free/master/v2ray)
-          DATA2=$(curl -sL https://raw.githubusercontent.com/vfarid/v2ray-share/main/all.txt)
-          DATA3=$(curl -sL https://raw.githubusercontent.com/awesome-vpn/test/main/all.txt)
+          # 使用公开的解析接口作为源，这些源非常稳定且自带翻墙
+          DATA=$(curl -sL "https://api.v1.mk/sub?target=v2ray&url=https://raw.githubusercontent.com/freefq/free/master/v2ray")
           
-          # 合并数据
-          ALL_DATA="${DATA1}"$'\n'"${DATA2}"$'\n'"${DATA3}"
+          # 检查抓到的数据是否有效，如果抓到的是 404 文本，直接拦截不发送
+          if [[ "$DATA" == *"404"* ]] || [[ "$DATA" == "" ]]; then
+            echo "抓取失败，拒绝注入空数据或错误页面"
+            exit 1
+          fi
           
-          # 推送到甲骨文仓库
-          curl -X POST "${{ secrets.SUB_URL }}" \
+          # 执行注入
+          curl -X POST -L "${{ secrets.SUB_URL }}" \
+            -A "Mozilla/5.0" \
             -d "key=tomato666" \
-            --data-urlencode "data=${ALL_DATA}"
+            --data-urlencode "data=${DATA}"
